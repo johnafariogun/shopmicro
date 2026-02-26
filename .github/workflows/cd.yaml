@@ -1,0 +1,131 @@
+name: ShopMicro CD
+
+on:
+  workflow_run:
+    workflows: ["ShopMicro CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy-dev:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: development
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # For self-managed clusters, use kubeconfig secret stored in GitHub Actions
+      - name: Setup Kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Verify Cluster Connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+          echo "✓ Cluster connection verified"
+
+      - name: Deploy Namespace
+        run: kubectl apply -f k8s/namespace.yaml
+
+      # ── Secrets ──────────────────────────────────────────────────────────────
+      - name: Create / Update App Secrets
+        run: |
+          kubectl create secret generic shopmicro-secrets \
+            --namespace=shopmicro \
+            --from-literal=POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
+            --from-literal=POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+            --from-literal=POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            --save-config \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # Create image pull secret for GHCR
+      - name: Create GHCR Pull Secret
+        run: |
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --namespace=shopmicro \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --save-config \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      # ── Stateful services ─────────────────────────────────────────────────────
+      - name: Deploy Postgres
+        run: |
+          kubectl apply -f k8s/postgres.yaml
+          echo "Waiting for Postgres to be ready..."
+          if ! kubectl wait --for=condition=Ready pod -l app=postgres -n shopmicro --timeout=300s; then
+            echo "--- POSTGRES DIAGNOSTICS ---"
+            kubectl describe pods -l app=postgres -n shopmicro
+            kubectl get events -n shopmicro --sort-by='.lastTimestamp' | tail -20
+            kubectl logs -l app=postgres -n shopmicro --all-containers --tail=100
+            exit 1
+          fi
+          echo "✓ Postgres ready"
+
+      - name: Deploy Redis
+        run: |
+          kubectl apply -f k8s/redis.yaml
+          echo "Waiting for Redis to be ready..."
+          if ! kubectl rollout status deployment/redis -n shopmicro --timeout=120s; then
+            kubectl logs -l app=redis -n shopmicro --all-containers --tail=50
+            exit 1
+          fi
+          echo "✓ Redis ready"
+
+      # ── Stateless services ────────────────────────────────────────────────────
+      - name: Deploy Backend
+        run: |
+          kubectl apply -f k8s/backend.yaml
+          echo "Waiting for Backend to be ready..."
+          if ! kubectl rollout status deployment/backend -n shopmicro --timeout=180s; then
+            kubectl describe pods -l app=backend -n shopmicro
+            kubectl logs -l app=backend -n shopmicro --all-containers --tail=100
+            exit 1
+          fi
+          echo "✓ Backend ready"
+
+      - name: Deploy ML Service
+        run: |
+          kubectl apply -f k8s/ml-service.yaml
+          echo "Waiting for ML Service to be ready..."
+          if ! kubectl rollout status deployment/ml-service -n shopmicro --timeout=180s; then
+            kubectl describe pods -l app=ml-service -n shopmicro
+            kubectl logs -l app=ml-service -n shopmicro --all-containers --tail=100
+            exit 1
+          fi
+          echo "✓ ML Service ready"
+
+      - name: Deploy Frontend
+        run: |
+          kubectl apply -f k8s/frontend.yaml
+          echo "Waiting for Frontend to be ready..."
+          if ! kubectl rollout status deployment/frontend -n shopmicro --timeout=180s; then
+            kubectl describe pods -l app=frontend -n shopmicro
+            kubectl logs -l app=frontend -n shopmicro --all-containers --tail=100
+            exit 1
+          fi
+          echo "✓ Frontend ready"
+
+      - name: Deploy HPA and Ingress
+        run: |
+          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/ingress.yaml
+          echo "✓ HPA and Ingress deployed"
+
+      - name: Post-Deployment Verification
+        run: |
+          echo "=== Deployment Summary ==="
+          kubectl get pods -n shopmicro
+          kubectl get svc -n shopmicro
+          kubectl get ingress -n shopmicro
+          echo ""
+          echo "Frontend Service Info:"
+          kubectl get svc frontend -n shopmicro -o jsonpath='{.status.loadBalancer.ingress[0]}'

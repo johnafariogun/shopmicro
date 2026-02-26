@@ -1,0 +1,174 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: shopmicro
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS products (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      price NUMERIC(10,2) NOT NULL
+    );
+
+    INSERT INTO products (name, price) VALUES
+    ('Mechanical Keyboard', 79.99),
+    ('4K Monitor', 299.99),
+    ('USB-C Dock', 129.99),
+    ('Wireless Mouse', 29.99),
+    ('Gaming Headset', 89.99),
+    ('Webcam HD', 59.99),
+    ('Bluetooth Speaker', 49.99),
+    ('Laptop Stand', 39.99),
+    ('External SSD 1TB', 149.99),
+    ('Mechanical Numpad', 45.99),
+    ('RGB Mousepad', 24.99),
+    ('USB Hub', 19.99),
+    ('Portable Monitor', 199.99),
+    ('Ergonomic Chair', 249.99),
+    ('Smartphone Stand', 14.99),
+    ('Desk Lamp LED', 34.99),
+    ('Wireless Charger', 27.99),
+    ('Noise Cancelling Headphones', 199.99),
+    ('1080p Monitor', 179.99),
+    ('Laptop Sleeve', 22.99),
+    ('Gaming Keyboard TKL', 109.99),
+    ('Microphone USB', 89.99),
+    ('Streaming Camera', 129.99),
+    ('Graphics Tablet', 79.99),
+    ('Portable SSD 512GB', 99.99),
+    ('Surge Protector', 18.99),
+    ('Ethernet Cable 5m', 9.99),
+    ('Mechanical Keyboard 60%', 119.99),
+    ('Docking Station Pro', 179.99),
+    ('VR Headset', 399.99),
+    ('WiFi Extender', 59.99),
+    ('NAS Storage 4TB', 499.99),
+    ('Smart Light Strip', 44.99),
+    ('USB-C Charger 65W', 39.99),
+    ('Laptop Cooling Pad', 29.99),
+    ('Tablet Stand', 19.99),
+    ('Wireless Earbuds', 129.99),
+    ('Mechanical Switch Set', 49.99),
+    ('Office Desk Mat', 34.99),
+    ('4K Webcam', 149.99)
+    ON CONFLICT (id) DO NOTHING;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: shopmicro
+spec:
+  clusterIP: None   # Headless — StatefulSet pods get stable DNS: postgres-0.postgres.shopmicro.svc.cluster.local
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: shopmicro
+  labels:
+    app: postgres
+    tier: data
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  # StatefulSet uses OnDelete by default; RollingUpdate gives controlled upgrades
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: postgres
+        tier: data
+    spec:
+      # ── Scheduling ────────────────────────────────────────────────────────────
+      # Pin postgres to the node labelled role=data.
+      # The data node is tainted data-only=true:NoSchedule so only pods that
+      # explicitly tolerate it will land here — keeping app traffic off it.
+      nodeSelector:
+        role: data
+
+      tolerations:
+        - key: "data-only"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+
+      # ── Containers ────────────────────────────────────────────────────────────
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: shopmicro-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shopmicro-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: shopmicro-secrets
+                  key: POSTGRES_DB
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+            - name: init-script
+              mountPath: /docker-entrypoint-initdb.d/init.sql
+              subPath: init.sql
+          readinessProbe:
+            exec:
+              # pg_isready uses the POSTGRES_USER env var automatically
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 256Mi
+            limits:
+              cpu: "500m"
+              memory: 512Mi
+      volumes:
+        - name: init-script
+          configMap:
+            name: postgres-init
+
+  # ── Storage ───────────────────────────────────────────────────────────────────
+  # k3s ships with the 'local-path' provisioner as its default StorageClass.
+  # No gp2 or cloud-specific class needed.
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 2Gi

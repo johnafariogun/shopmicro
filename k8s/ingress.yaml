@@ -1,0 +1,45 @@
+# k3s ships Traefik as its default ingress controller.
+# This Ingress uses ingressClassName: traefik (k3s default).
+# No extra helm install needed unlike nginx-ingress on bare k8s.
+#
+# Before applying, set the host field to your actual node IP or hostname.
+# If you have no DNS, use nip.io: e.g. shopmicro.192.168.1.10.nip.io
+#
+# Test reachability: curl -H "Host: shopmicro.example.com" http://<NODE_IP>
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shopmicro-ingress
+  namespace: shopmicro
+  annotations:
+    # Traefik-specific: strip the path prefix before forwarding
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    # Replace with your actual hostname or <NODE_IP>.nip.io
+    - host: shopmicro.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /ml
+            pathType: Prefix
+            backend:
+              service:
+                name: ml-service
+                port:
+                  number: 5000

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: shopmicro
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - redis.yaml
+  - backend.yaml
+  - ml-service.yaml
+  - frontend.yaml
+  - hpa.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+  # secrets.yaml.template intentionally excluded — secrets are created by
+  # CI/CD via kubectl from GitHub Secrets, never stored in the repo.

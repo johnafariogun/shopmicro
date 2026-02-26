@@ -1,0 +1,165 @@
+# NetworkPolicy — Least-Privilege Network Paths
+#
+# Default: deny all ingress within the namespace.
+# Each policy below opens only the exact ports each service needs.
+#
+# Traffic map:
+#   frontend    → backend:8080, ml-service:5000
+#   backend     → postgres:5432, redis:6379
+#   ml-service  → backend:8080
+#   ingress     → frontend:80, backend:8080, ml-service:5000
+#   prometheus  → backend:8080/metrics, ml-service:5000/metrics (Session 2)
+
+---
+# 1. Default deny-all ingress inside the namespace.
+#    Nothing can receive traffic unless an explicit policy allows it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: shopmicro
+spec:
+  podSelector: {}       # matches ALL pods in namespace
+  policyTypes:
+    - Ingress
+
+---
+# 2. Allow Traefik ingress controller → frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-frontend
+  namespace: shopmicro
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 80
+      # kube-system namespace hosts Traefik on k3s
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+---
+# 3. Allow Traefik + frontend → backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-backend
+  namespace: shopmicro
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8080
+      from:
+        # frontend inside shopmicro namespace
+        - podSelector:
+            matchLabels:
+              app: frontend
+        # ml-service calls backend for product catalog
+        - podSelector:
+            matchLabels:
+              app: ml-service
+        # Traefik from kube-system (for /api path on ingress)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+---
+# 4. Allow Traefik + frontend → ml-service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-to-ml-service
+  namespace: shopmicro
+spec:
+  podSelector:
+    matchLabels:
+      app: ml-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 5000
+      from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+
+---
+# 5. Allow backend → postgres
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-postgres
+  namespace: shopmicro
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 5432
+      from:
+        - podSelector:
+            matchLabels:
+              app: backend
+
+---
+# 6. Allow backend → redis
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-redis
+  namespace: shopmicro
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 6379
+      from:
+        - podSelector:
+            matchLabels:
+              app: backend
+
+---
+# 7. Allow Prometheus (monitoring namespace) to scrape /metrics on backend and ml-service.
+#    Applied now — Prometheus won't exist until Session 2 but the policy is harmless early.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: shopmicro
+spec:
+  podSelector:
+    matchLabels:
+      tier: app     # matches backend AND ml-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8080   # backend /metrics
+        - port: 5000   # ml-service /metrics
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

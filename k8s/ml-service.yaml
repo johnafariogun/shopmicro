@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service-deployment
+  namespace: shopmicro
+  labels:
+    app: ml-service
+    tier: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ml-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: ml-service
+        tier: app
+    spec:
+      # ── Scheduling ───────────────────────────────────────────────────────────
+      nodeSelector:
+        role: app
+
+      # Soft anti-affinity: prefer not to land on same node as backend
+      # to spread app-tier memory usage across both app nodes.
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 50
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - backend
+                topologyKey: kubernetes.io/hostname
+
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      initContainers:
+        - name: wait-for-backend
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z backend 8080; do
+                echo "Waiting for backend..."; sleep 2;
+              done
+
+      containers:
+        - name: ml-service
+          image: ghcr.io/johnafariogun/shopmicro-ml-service:${SHA_TAG}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          env:
+            - name: BACKEND_API
+              value: "http://backend:8080"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://alloy.monitoring.svc.cluster.local:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "shopmicro-ml-service"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  namespace: shopmicro
+spec:
+  selector:
+    app: ml-service
+  ports:
+    - port: 5000
+      targetPort: 5000
+  type: ClusterIP

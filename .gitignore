@@ -1,0 +1,36 @@
+# ── NEVER commit these ───────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig
+kubeconfig.*
+secrets.yaml
+**/secrets.yaml
+!k8s/base/secrets.yaml.template
+
+# ── OS & editor ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+dist/
+*.egg-info/
+
+# ── Node / frontend ──────────────────────────────────────────
+node_modules/
+dist/
+.next/
+build/
+
+# ── Docker ───────────────────────────────────────────────────
+docker-compose.override.yml

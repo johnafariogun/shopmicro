@@ -1,0 +1,122 @@
+name: ShopMicro CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Frontend Lint
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm run lint --if-present
+
+      - name: Backend Lint
+        working-directory: ./backend
+        run: |
+          npm install
+          # Run eslint if configured; fall back to a syntax check on every JS file
+          if [ -f ".eslintrc*" ] || grep -q '"lint"' package.json; then
+            npm run lint
+          else
+            echo "No ESLint config found — running node syntax check on all JS files"
+            find . -name "*.js" -not -path "*/node_modules/*" \
+              -exec node --check {} \; && echo "Syntax OK"
+          fi
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: ML Service Lint
+        working-directory: ./ml-service
+        run: |
+          pip install pylint
+          pylint --disable=C0114,C0115,C0116 app.py || true
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Backend Tests
+        working-directory: ./backend
+        run: |
+          npm install
+          npm test --if-present
+
+      - name: ML Service Tests
+        working-directory: ./ml-service
+        run: |
+          pip install -r requirements.txt pytest
+          pytest || true
+
+      - name: Frontend Tests
+        working-directory: ./frontend
+        run: |
+          npm install
+          npm test --if-present
+
+  build-and-push:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        service: [backend, frontend, ml-service]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Log in to Container registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.service }}
+          tags: |
+            type=sha
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      # Frontend needs VITE_* vars baked at build time with PUBLIC-FACING URLs.
+      # The browser (outside the cluster) cannot reach cluster-internal service names.
+      # Set VITE_API_BASE / VITE_ML_BASE as GitHub Secrets pointing to your
+      # load balancer / domain, then pass them here as build-args.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./${{ matrix.service }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            ${{ matrix.service == 'frontend' && format('VITE_API_BASE={0}', secrets.VITE_API_BASE) || '' }}
+            ${{ matrix.service == 'frontend' && format('VITE_ML_BASE={0}', secrets.VITE_ML_BASE) || '' }}

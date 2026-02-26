@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: shopmicro
+  labels:
+    app: backend
+    tier: app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  # ── Rolling update ─────────────────────────────────────────────────────────
+  # At most 1 pod down at a time, spin up 1 extra before terminating old.
+  # Guarantees at least 1 backend replica serves traffic throughout a deploy.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: backend
+        tier: app
+    spec:
+      # ── Scheduling ───────────────────────────────────────────────────────────
+      # Target the app node(s). No taint on app nodes — other workloads can
+      # also land here. Postgres/redis taint keeps them isolated on data node.
+      nodeSelector:
+        role: app
+
+      # Anti-affinity: spread the 2 backend replicas across DIFFERENT nodes
+      # so a single node failure does not take both replicas down.
+      affinity:
+        podAntiAffinity:
+          # preferredDuringScheduling = best-effort (won't block scheduling
+          # if only one app node is available, e.g. during cluster scale-down)
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - backend
+                topologyKey: kubernetes.io/hostname
+
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for postgres..."; sleep 2;
+              done
+        - name: wait-for-redis
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z redis 6379; do
+                echo "Waiting for redis..."; sleep 2;
+              done
+
+      containers:
+        - name: backend
+          image: ghcr.io/johnafariogun/shopmicro-backend:${SHA_TAG}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: DB_HOST
+              value: "postgres"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: shopmicro-secrets
+                  key: POSTGRES_DB
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: shopmicro-secrets
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shopmicro-secrets
+                  key: POSTGRES_PASSWORD
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            # OTel endpoint — picked up by the instrumentation layer (Session 2)
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://alloy.monitoring.svc.cluster.local:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "shopmicro-backend"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 128Mi
+            limits:
+              cpu: "500m"
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: shopmicro
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

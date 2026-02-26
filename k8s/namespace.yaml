@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopmicro
+  labels:
+    app.kubernetes.io/part-of: shopmicro
+    # Label used by NetworkPolicy selectors
+    kubernetes.io/metadata.name: shopmicro
