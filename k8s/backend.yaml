@@ -73,7 +73,7 @@ spec:
 
       containers:
         - name: backend
-          image: ghcr.io/johnafariogun/shopmicro-backend:${SHA_TAG}
+          image: ghcr.io/johnafariogun/shopmicro-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

@@ -34,7 +34,7 @@ spec:
 
       containers:
         - name: frontend
-          image: ghcr.io/johnafariogun/shopmicro-frontend:${SHA_TAG}
+          image: ghcr.io/johnafariogun/shopmicro-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

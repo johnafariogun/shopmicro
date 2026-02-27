@@ -57,7 +57,7 @@ spec:
 
       containers:
         - name: ml-service
-          image: ghcr.io/johnafariogun/shopmicro-ml-service:${SHA_TAG}
+          image: ghcr.io/johnafariogun/shopmicro-ml-service:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
