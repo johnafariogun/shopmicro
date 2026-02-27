@@ -56,6 +56,13 @@ jobs:
             --save-config \
             --dry-run=client -o yaml | kubectl apply -f -
 
+      - name: Predeployment
+        run: |
+          docker system prune -af
+          kubectl delete pods -n shopmicro --field-selector status.phase=Failed || true
+          echo "✓ Predeployment cleanup done"
+
+
       # ── Stateful services ─────────────────────────────────────────────────────
       - name: Deploy Postgres
         run: |
@@ -87,7 +94,7 @@ jobs:
           IMAGE_TAG="sha-$SHORT_SHA"
           
           # Use sed or envsubst to replace the placeholder in your YAML
-          sed -i "s/\:latest/$IMAGE_TAG/g" k8s/backend.yaml
+          sed -i "s/:latest/:$IMAGE_TAG/g" k8s/backend.yaml
           kubectl apply -f k8s/backend.yaml
           echo "Waiting for Backend to be ready..."
           if ! kubectl rollout status deployment/backend -n shopmicro --timeout=180s; then
@@ -102,7 +109,7 @@ jobs:
           SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
           IMAGE_TAG="sha-$SHORT_SHA"
           # Use sed or envsubst to replace the placeholder in your YAML
-          sed -i "s/\:latest/$IMAGE_TAG/g" k8s/ml-service.yaml
+          sed -i "s/:latest/:$IMAGE_TAG/g" k8s/ml-service.yaml
           kubectl apply -f k8s/ml-service.yaml
           echo "Waiting for ML Service to be ready..."
           if ! kubectl rollout status deployment/ml-service -n shopmicro --timeout=180s; then
@@ -116,7 +123,7 @@ jobs:
         run: |
           SHORT_SHA=$(echo "${{ github.event.workflow_run.head_sha }}" | cut -c1-7)
           IMAGE_TAG="sha-$SHORT_SHA"
-          sed -i "s/\:latest/$IMAGE_TAG/g" k8s/frontend.yaml
+          sed -i "s/:latest/:$IMAGE_TAG/g" k8s/frontend.yaml
           kubectl apply -f k8s/frontend.yaml
           echo "Waiting for Frontend to be ready..."
           if ! kubectl rollout status deployment/frontend -n shopmicro --timeout=180s; then
