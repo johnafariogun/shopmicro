@@ -29,7 +29,7 @@ spec:
       # Target the app node(s). No taint on app nodes — other workloads can
       # also land here. Postgres/redis taint keeps them isolated on data node.
       nodeSelector:
-        role: frontend # temp change
+        role: app # temp change
 
       # Anti-affinity: spread the 2 backend replicas across DIFFERENT nodes
       # so a single node failure does not take both replicas down.

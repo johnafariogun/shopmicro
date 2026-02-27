@@ -7,24 +7,24 @@ metadata:
     app: ml-service
     tier: app
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: ml-service
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0
+      maxUnavailable: 1
       maxSurge: 1
   template:
     metadata:
       labels:
         app: ml-service
-        tier: app
+        tier: ml-service
     spec:
       # ── Scheduling ───────────────────────────────────────────────────────────
       nodeSelector:
-        role: app
+        role: ml-service
 
       # Soft anti-affinity: prefer not to land on same node as backend
       # to spread app-tier memory usage across both app nodes.
@@ -87,7 +87,7 @@ spec:
             httpGet:
               path: /health
               port: 5000
-            initialDelaySeconds: 60
+            initialDelaySeconds: 20
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
