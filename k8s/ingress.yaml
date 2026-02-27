@@ -16,10 +16,10 @@ metadata:
     # Traefik-specific: strip the path prefix before forwarding
     traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
-  ingressClassName: traefik
+  ingressClassName: nginx
   rules:
     # Replace with your actual hostname or <NODE_IP>.nip.io
-    - host: shopmicro.example.com
+    - host: shopmicro.local
       http:
         paths:
           - path: /

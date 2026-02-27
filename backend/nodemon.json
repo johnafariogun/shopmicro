@@ -1,0 +1,11 @@
+{
+    "watch": [
+        "."
+    ],
+    "ext": "js,json",
+    "ignore": [
+        "node_modules/",
+        "logs/"
+    ],
+    "exec": "node --require ./instrumentation.js server.js"
+}

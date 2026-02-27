@@ -59,7 +59,7 @@ jobs:
       - name: Predeployment
         run: |
           sudo crictl rmi --prune || true
-          kubectl delete pods -n shopmicro --field-selector status.phase=Failed || true
+          kubectl delete pods -n shopmicro --field-selector status.phase!=Running || true
           echo "✓ Predeployment cleanup done"
 
 
@@ -148,3 +148,30 @@ jobs:
           echo ""
           echo "Frontend Service Info:"
           kubectl get svc frontend -n shopmicro -o jsonpath='{.status.loadBalancer.ingress[0]}'
+
+      - name: Deploy Observability & Other Services
+        run: |
+          kubectl apply -f k8s/grafana.yaml
+          kubectl apply -f k8s/observability/dashboards.yaml
+          kubectl apply -f k8s/observability/grafana-datasources.yaml
+          kubectl apply -f k8s/observability/loki.yaml
+          kubectl apply -f k8s/observability/prometheus.yaml
+          kubectl apply -f k8s/observability/prometheus-rules.yaml
+          kubectl apply -f k8s/observability/tempo.yaml
+          
+          # Health Checks for Loki and Tempo (Observability core).
+          echo "Waiting for Loki to be ready..."
+          if ! kubectl rollout status deployment/loki -n shopmicro --timeout=60s; then
+            echo "--- LOKI DIAGNOSTICS START ---"
+            kubectl describe pods -l app=loki -n shopmicro
+            kubectl logs -l app=loki -n shopmicro --tail=100
+            echo "--- LOKI DIAGNOSTICS END ---"
+          fi
+
+          echo "Waiting for Tempo to be ready..."
+          if ! kubectl rollout status deployment/tempo -n shopmicro --timeout=60s; then
+            echo "--- TEMPO DIAGNOSTICS START ---"
+            kubectl describe pods -l app=tempo -n shopmicro
+            kubectl logs -l app=tempo -n shopmicro --tail=100
+            echo "--- TEMPO DIAGNOSTICS END ---"
+          fi
