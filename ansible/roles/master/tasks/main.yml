@@ -1,0 +1,79 @@
+---
+- name: Check if Kubernetes master is already initialized
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: k8s_conf
+
+- name: Initialize Kubernetes cluster (Calico CIDR)
+  command: kubeadm init --pod-network-cidr=192.168.0.0/16
+  when: not k8s_conf.stat.exists
+
+- name: Create .kube directory for ubuntu user
+  file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+
+- name: Copy admin.conf to ubuntu user config
+  copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: yes
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+
+- name: Get join command for workers
+  command: kubeadm token create --print-join-command
+  register: join_command_raw
+  changed_when: false
+
+- name: Set join command as a global fact
+  set_fact:
+    k8s_join_command: "{{ join_command_raw.stdout }}"
+
+- name: Apply Calico Tigera Operator
+  become_user: ubuntu
+  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/tigera-operator.yaml
+  register: calico_op
+  changed_when: "'created' in calico_op.stdout or 'configured' in calico_op.stdout"
+
+- name: Wait for Calico CRDs to be established
+  pause:
+    seconds: 15
+  when: calico_op.changed
+
+- name: Apply Calico Custom Resources
+  become_user: ubuntu
+  command: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.31.4/manifests/custom-resources.yaml
+  ignore_errors: yes
+
+- name: Apply Local Path Provisioner
+  become_user: ubuntu
+  command: kubectl apply -f https://raw.githubusercontent.com/rancher/local-path-provisioner/master/deploy/local-path-storage.yaml
+
+- name: Set Local Path Provisioner as default StorageClass
+  become_user: ubuntu
+  command: >
+    kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  ignore_errors: yes
+
+- name: Apply NGINX Ingress Controller (Baremetal)
+  become_user: ubuntu
+  command: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/baremetal/deploy.yaml
+
+- name: Apply Metrics Server
+  become_user: ubuntu
+  command: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+- name: Patch Metrics Server for insecure TLS
+  become_user: ubuntu
+  command: >
+    kubectl patch deployment metrics-server -n kube-system --type='json' -p='[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+  ignore_errors: yes
+
+- name: Label master node
+  become_user: ubuntu
+  command: kubectl label node {{ ansible_hostname }} role=control-plane --overwrite

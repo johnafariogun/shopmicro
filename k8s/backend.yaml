@@ -99,7 +99,7 @@ spec:
               value: "redis://redis:6379"
             # OTel endpoint — picked up by the instrumentation layer (Session 2)
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://alloy.monitoring.svc.cluster.local:4318"
+              value: "http://otel-collector:4318"
             - name: OTEL_SERVICE_NAME
               value: "shopmicro-backend"
           resources:

@@ -9,7 +9,7 @@ spec:
   storageClassName: local-path   # k3s built-in provisioner
   resources:
     requests:
-      storage: 1Gi
+      storage: 500Mi
 ---
 apiVersion: apps/v1
 kind: Deployment

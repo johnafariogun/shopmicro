@@ -139,16 +139,6 @@ jobs:
           kubectl apply -f k8s/ingress.yaml
           echo "✓ HPA and Ingress deployed"
 
-      - name: Post-Deployment Verification
-        run: |
-          echo "=== Deployment Summary ==="
-          kubectl get pods -n shopmicro
-          kubectl get svc -n shopmicro
-          kubectl get ingress -n shopmicro
-          echo ""
-          echo "Frontend Service Info:"
-          kubectl get svc frontend -n shopmicro -o jsonpath='{.status.loadBalancer.ingress[0]}'
-
       - name: Deploy Observability & Other Services
         run: |
           kubectl apply -f k8s/grafana.yaml
@@ -175,3 +165,14 @@ jobs:
             kubectl logs -l app=tempo -n shopmicro --tail=100
             echo "--- TEMPO DIAGNOSTICS END ---"
           fi
+
+      - name: Post-Deployment Verification
+        run: |
+          echo "=== Deployment Summary ==="
+          kubectl get pods -n shopmicro
+          kubectl get svc -n shopmicro
+          echo ""
+          echo "Frontend Ingress Info:"
+          kubectl get ingress -n shopmicro
+          echo "=== final cleanup ==="
+          kubectl delete pods -n shopmicro --field-selector status.phase!=Running || true

@@ -90,10 +90,6 @@ spec:
         app: postgres
         tier: data
     spec:
-      # ── Scheduling ────────────────────────────────────────────────────────────
-      # Pin postgres to the node labelled role=data.
-      # The data node is tainted data-only=true:NoSchedule so only pods that
-      # explicitly tolerate it will land here — keeping app traffic off it.
       nodeSelector:
         role: data
 
@@ -135,7 +131,7 @@ spec:
               subPath: init.sql
           readinessProbe:
             exec:
-              # pg_isready uses the POSTGRES_USER env var automatically
+              # pg_isready uses the POSTGRES_USER env var automatically, change to a specific user or password if needed
               command: ["pg_isready", "-U", "postgres"]
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -160,9 +156,7 @@ spec:
           configMap:
             name: postgres-init
 
-  # ── Storage ───────────────────────────────────────────────────────────────────
-  # k3s ships with the 'local-path' provisioner as its default StorageClass.
-  # No gp2 or cloud-specific class needed.
+
   volumeClaimTemplates:
     - metadata:
         name: postgres-storage
@@ -171,4 +165,4 @@ spec:
         storageClassName: local-path
         resources:
           requests:
-            storage: 2Gi
+            storage: 1Gi

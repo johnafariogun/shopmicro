@@ -1,0 +1,7 @@
+# ansible/roles/common/handlers/main.yml
+---
+- name: restart containerd
+  systemd:
+    name: containerd
+    state: restarted
+    enabled: yes

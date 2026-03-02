@@ -1,0 +1,21 @@
+---
+- name: Check if worker is already in the cluster
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: worker_conf
+
+- name: Join the Kubernetes cluster
+  command: "{{ hostvars[groups['masters'][0]]['k8s_join_command'] }}"
+  when: not worker_conf.stat.exists
+
+- name: Apply node labels
+  delegate_to: "{{ groups['masters'][0] }}"
+  become_user: ubuntu
+  command: kubectl label node {{ ansible_hostname }} role={{ k8s_role }} tier={{ k8s_tier | default('none') }} --overwrite
+
+- name: Apply node taints
+  delegate_to: "{{ groups['masters'][0] }}"
+  become_user: ubuntu
+  command: kubectl taint nodes {{ ansible_hostname }} {{ k8s_taint }} --overwrite
+  when: k8s_taint is defined
+  ignore_errors: yes

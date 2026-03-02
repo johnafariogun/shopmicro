@@ -71,3 +71,4 @@ echo "      --from-literal=POSTGRES_DB=shopmicro \\"
 echo "      --from-literal=POSTGRES_USER=postgres \\"
 echo "      --from-literal=POSTGRES_PASSWORD=<your-password>"
 echo "    kubectl apply -k k8s/"
+

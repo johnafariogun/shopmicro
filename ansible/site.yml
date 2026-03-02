@@ -1,0 +1,16 @@
+---
+- name: Phase 1 - Prepare all nodes
+  hosts: all
+  gather_facts: yes
+  roles:
+    - common
+
+- name: Phase 2 - Setup Kubernetes Master
+  hosts: masters
+  roles:
+    - master
+
+- name: Phase 3 - Setup Kubernetes Workers
+  hosts: workers
+  roles:
+    - worker

@@ -1,36 +1,91 @@
-# ── NEVER commit these ───────────────────────────────────────
+# =========================
+# Security & Credentials
+# =========================
+*.pem
+*.rsa
+*.pub
+*.key
 .env
 .env.*
 !.env.example
-*.pem
-*.key
-kubeconfig
-kubeconfig.*
-secrets.yaml
-**/secrets.yaml
-!k8s/base/secrets.yaml.template
+secrets.yml
 
-# ── OS & editor ──────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
-*.swp
+# =========================
+# Terraform (infra/)
+# =========================
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+.terraform.lock.hcl
 
-# ── Python ───────────────────────────────────────────────────
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-dist/
-*.egg-info/
+# =========================
+# Ansible (ansible/)
+# =========================
+*.retry
+# (Optional) Uncomment the next line if you don't want to track the auto-generated inventory
+ansible/inventory.ini 
 
-# ── Node / frontend ──────────────────────────────────────────
+# =========================
+# Node.js (backend/ & frontend/)
+# =========================
 node_modules/
 dist/
-.next/
 build/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage/
+.next/
+out/
 
-# ── Docker ───────────────────────────────────────────────────
-docker-compose.override.yml
+# =========================
+# Python (ml-service/)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+venv/
+env/
+ENV/
+.pytest_cache/
+
+# =========================
+# OS & IDE Files
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+*.swp
