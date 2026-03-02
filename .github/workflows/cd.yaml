@@ -136,6 +136,7 @@ jobs:
       - name: Deploy HPA and Ingress
         run: |
           kubectl apply -f k8s/hpa.yaml
+          kubectl delete ingress shopmicro-ingress-api shopmicro-ingress-frontend -n shopmicro --ignore-not-found
           kubectl apply -f k8s/ingress.yaml
           echo "✓ HPA and Ingress deployed"
 
@@ -148,6 +149,7 @@ jobs:
           kubectl apply -f k8s/observability/prometheus.yaml
           kubectl apply -f k8s/observability/prometheus-rules.yaml
           kubectl apply -f k8s/observability/tempo.yaml
+          kubectl apply -f k8s/observability/otel-collector.yaml
           
           # Health Checks for Loki and Tempo (Observability core).
           echo "Waiting for Loki to be ready..."

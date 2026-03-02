@@ -1,13 +1,12 @@
 ---
+# 1. API and ML Ingress (WITH Rewrite annotations)
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: shopmicro-ingress
+  name: shopmicro-ingress-api
   namespace: shopmicro
   annotations:
-    # Tells NGINX to use Regular Expressions for path matching
     nginx.ingress.kubernetes.io/use-regex: "true"
-    # Captures everything AFTER the prefix and passes only that to the backend
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
@@ -15,7 +14,6 @@ spec:
     - host: shopmicro.local
       http:
         paths:
-          # 1. API Backend Route (Matches /api/products, sends /products to backend)
           - path: /api(/|$)(.*)
             pathType: Prefix
             backend:
@@ -23,8 +21,6 @@ spec:
                 name: backend
                 port:
                   number: 8080
-
-          # 2. ML Service Route (Matches /ml/predict, sends /predict to ML pod)
           - path: /ml(/|$)(.*)
             pathType: Prefix
             backend:
@@ -33,8 +29,20 @@ spec:
                 port:
                   number: 5000
 
-          # 3. Frontend Route (Catches the root path and serves the React app)
-          - path: /(/|$)(.*)
+---
+# 2. Frontend Ingress (NO Rewrite annotations)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shopmicro-ingress-frontend
+  namespace: shopmicro
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: shopmicro.local
+      http:
+        paths:
+          - path: /
             pathType: Prefix
             backend:
               service:

@@ -1,0 +1,58 @@
+name: Terraform PR Pipeline (IaC Testing Pyramid)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/**'
+
+jobs:
+  iac-pyramid:
+    name: Terraform Testing
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1 # Change to your region
+          
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.14.5" # Use your version
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform Init
+        run: terraform init -backend=false # No state needed for validation
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: TFLint (Deep Linting)
+        uses: terraform-linters/setup-tflint@v3
+      - run: tflint --init
+      - run: tflint -f compact
+
+      - name: Checkov Policy-as-Code Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: infra/
+          framework: terraform
+          quiet: true
+      - name: Terraform Test
+        run: terraform test

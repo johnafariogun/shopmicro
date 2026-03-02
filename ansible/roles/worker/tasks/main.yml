@@ -19,3 +19,51 @@
   command: kubectl taint nodes {{ ansible_hostname }} {{ k8s_taint }} --overwrite
   when: k8s_taint is defined
   ignore_errors: yes
+
+# - name: Implement GitHub actions runner strictly on worker_runner
+#   when: inventory_hostname == 'worker_runner'
+#   block:
+#     - name: Create actions-runner directory
+#       become: yes
+#       become_user: ubuntu
+#       ansible.builtin.file:
+#         path: /home/ubuntu/actions-runner
+#         state: directory
+#         mode: '0755'
+
+#     - name: Download and extract the GitHub Actions runner
+#       become: yes
+#       become_user: ubuntu
+#       ansible.builtin.unarchive:
+#         src: https://github.com/actions/runner/releases/download/v2.332.0/actions-runner-linux-x64-2.332.0.tar.gz
+#         dest: /home/ubuntu/actions-runner
+#         remote_src: yes
+#         extra_opts:
+#           - --no-same-owner
+#         creates: /home/ubuntu/actions-runner/config.sh
+
+#     - name: Configure the runner (Unattended)
+#       become: yes
+#       become_user: ubuntu
+#       ansible.builtin.command:
+#         cmd: "./config.sh --url https://github.com/johnafariogun/shopmicro --token {{ github_runner_token }} --unattended --replace"
+#         chdir: /home/ubuntu/actions-runner
+#       args:
+#         creates: /home/ubuntu/actions-runner/.runner
+
+#     - name: Install the runner as a systemd service
+#       become: yes
+#       become_user: ubuntu
+#       ansible.builtin.command:
+#         cmd: sudo ./svc.sh install
+#         chdir: /home/ubuntu/actions-runner
+#       args:
+#         creates: /home/ubuntu/actions-runner/.service
+
+#     - name: Start the runner service
+#       become: yes
+#       become_user: ubuntu
+#       ansible.builtin.command:
+#         cmd: sudo ./svc.sh start
+#         chdir: /home/ubuntu/actions-runner
+#       ignore_errors: yes

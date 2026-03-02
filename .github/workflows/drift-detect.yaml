@@ -1,0 +1,57 @@
+name: Infrastructure Drift Detection
+
+on:
+  workflow_dispatch: # Allows you to click "Run workflow" manually (On-Demand)
+  schedule:
+    - cron: '0 8 * * 1-5' # Runs at 8:00 AM every Mon-Fri (Scheduled)
+
+jobs:
+  detect-drift:
+    name: Check for Drift
+    runs-on: self-hosted # Use your newly created runner!
+    defaults:
+      run:
+        working-directory: infra/
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Run Drift Detection
+        id: plan
+        run: |
+          set +e
+          terraform plan -detailed-exitcode > drift_plan.txt
+          EXIT_CODE=$?
+          set -e
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "Infrastructure matches code. No drift detected."
+            echo "drift=false" >> $GITHUB_OUTPUT
+          elif [ $EXIT_CODE -eq 2 ]; then
+            echo "DRIFT DETECTED! Someone changed the infrastructure manually."
+            echo "drift=true" >> $GITHUB_OUTPUT
+          else
+            echo "Terraform plan failed due to an error."
+            exit 1
+          fi
+
+      # Since we set up a Slack Webhook earlier for Alertmanager, let's reuse it here!
+      - name: Alert Slack on Drift
+        if: steps.plan.outputs.drift == 'true'
+        run: |
+          echo "🚨 *Terraform Drift Detected!* 🚨\nSomeone manually modified the cloud environment. Check the GitHub Actions logs to see the diff and remediate immediately." 
+        # uses: slackapi/slack-github-action@v1.24.0
+        # with:
+        #   payload: |
+        #     {
+        #       "text": "🚨 *Terraform Drift Detected!* 🚨\nSomeone manually modified the cloud environment. Check the GitHub Actions logs to see the diff and remediate immediately."
+        #     }
+        # env:
+        #   SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
