@@ -2,11 +2,11 @@ name: Terraform PR Pipeline (IaC Testing Pyramid)
 
 on:
   push:
-    branches: [main]
+    branches: ["main"]
     paths:
       - 'infra/**'
   pull_request:
-    branches: [main]
+    branches: ["main"]
     paths:
       - 'infra/**'
 
