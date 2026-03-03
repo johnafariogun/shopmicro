@@ -35,7 +35,7 @@ jobs:
         run: |
           set +e
           # Added -lock=false for read-only safety
-          terraform plan -detailed-exitcode -input=false -lock=false
+          terraform plan -detailed-exitcode -input=false -lock=false -var="admin_ip=${RUNNER_IP}/32"
           EXIT_CODE=$?
           set -e
           
