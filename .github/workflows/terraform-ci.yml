@@ -4,11 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - ./infra
+      - infra/**
   pull_request:
     branches: [main]
     paths:
-      - ./infra
+      - infra/**
 
 jobs:
   iac-pyramid:
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./infra
+        working-directory: infra/**
 
     steps:
       - name: Checkout Code
