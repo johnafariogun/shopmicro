@@ -33,8 +33,20 @@ jobs:
       - name: Run Drift Detection
         id: plan
         run: |
+          # 1. Fetch the runner's public IP with a fallback, and strip any whitespace
+          RUNNER_IP=$(curl -s https://checkip.amazonaws.com || curl -s https://ifconfig.me)
+          RUNNER_IP=$(echo "$RUNNER_IP" | tr -d '[:space:]')
+          
+          # 2. Safety check: ensure the IP isn't blank before proceeding
+          if [ -z "$RUNNER_IP" ]; then
+            echo "Error: Failed to fetch the runner's public IP address."
+            exit 1
+          fi
+          
+          echo "Runner IP successfully detected as: $RUNNER_IP"
+          
           set +e
-          # Added -lock=false for read-only safety
+          # 3. Pass the validated IP to Terraform
           terraform plan -detailed-exitcode -input=false -lock=false -var="admin_ip=${RUNNER_IP}/32"
           EXIT_CODE=$?
           set -e
@@ -47,12 +59,8 @@ jobs:
             echo "drift=true" >> $GITHUB_OUTPUT
           else
             echo "Terraform plan failed due to an error. Check the logs."
-            # Exiting with 1 here will correctly fail the GitHub Action job
-            exit 1 
+            exit 1
           fi
-        # Removed 'continue-on-error: true' so real errors actually fail the pipeline
-
-      # Since we set up a Slack Webhook earlier for Alertmanager, let's reuse it here!
       - name: Alert Slack on Drift
         if: steps.plan.outputs.drift == 'true'
         run: |
