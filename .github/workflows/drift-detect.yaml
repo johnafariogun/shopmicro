@@ -34,7 +34,8 @@ jobs:
         id: plan
         run: |
           set +e
-          terraform plan -detailed-exitcode > drift_plan.txt
+          # Added -lock=false for read-only safety
+          terraform plan -detailed-exitcode -input=false -lock=false
           EXIT_CODE=$?
           set -e
           
@@ -45,10 +46,11 @@ jobs:
             echo "DRIFT DETECTED! Someone changed the infrastructure manually."
             echo "drift=true" >> $GITHUB_OUTPUT
           else
-            echo "Terraform plan failed due to an error."
-            exit 1
+            echo "Terraform plan failed due to an error. Check the logs."
+            # Exiting with 1 here will correctly fail the GitHub Action job
+            exit 1 
           fi
-        continue-on-error: true
+        # Removed 'continue-on-error: true' so real errors actually fail the pipeline
 
       # Since we set up a Slack Webhook earlier for Alertmanager, let's reuse it here!
       - name: Alert Slack on Drift
