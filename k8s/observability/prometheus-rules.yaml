@@ -10,9 +10,10 @@ data:
         rules:
           - alert: BackendHighErrorRate
             expr: |
-              sum(rate(http_requests_total{status=~"5..", app=~"shopmicro-backend|shopmicro-ml"}[5m])) 
+              # --- THE FIX: Changed to http_request_duration_seconds_count ---
+              sum(rate(http_request_duration_seconds_count{status=~"5..", app=~"shopmicro-backend|shopmicro-ml"}[5m])) 
               / 
-              sum(rate(http_requests_total{app=~"shopmicro-backend|shopmicro-ml"}[5m])) > 0.05
+              sum(rate(http_request_duration_seconds_count{app=~"shopmicro-backend|shopmicro-ml"}[5m])) > 0.05
             for: 5m
             labels:
               severity: critical
@@ -23,6 +24,7 @@ data:
               runbook_url: "https://github.com/johnafariogun/shopmicro/wiki/Runbook-HighErrorRate"
 
           - alert: BackendLatencyDegradation
+            # --- THIS ONE WAS ALREADY PERFECT! ---
             expr: |
               histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{app=~"shopmicro-backend|shopmicro-ml"}[10m])) by (le)) > 0.200
             for: 10m

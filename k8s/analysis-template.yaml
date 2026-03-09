@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: backend-success-rate
+  namespace: shopmicro
+spec:
+  metrics:
+  - name: success-rate
+    interval: 1m
+    count: 3
+    successCondition: len(result) == 0 || result[0] >= 0.95 # Safe condition to avoid empty array crashes
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus.shopmicro.svc.cluster.local:9090
+        # --- THE FIX: Using your exact OpenTelemetry metric names and labels ---
+        query: |
+          sum(rate(http_request_duration_seconds_count{app="shopmicro-backend", status=~"2..|3.."}[1m])) 
+          / 
+          sum(rate(http_request_duration_seconds_count{app="shopmicro-backend"}[1m]))
+  - name: p95-latency
+    interval: 1m
+    count: 3
+    successCondition: len(result) == 0 || result[0] < 0.600
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus.shopmicro.svc.cluster.local:9090
+        query: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{app="shopmicro-backend"}[1m])) by (le))

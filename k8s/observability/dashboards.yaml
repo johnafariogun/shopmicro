@@ -21,7 +21,9 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
           "id": 1,
           "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
-          "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "sum(rate(http_server_requests_total[5m])) by (service_name)", "legendFormat": "{{service_name}}", "range": true, "refId": "A" } ],
+          "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", 
+          "expr": "sum(rate(http_request_duration_seconds_count[5m])) by (app)", 
+          "legendFormat": "{{app}}", "range": true, "refId": "A" } ],
           "title": "Request Rate by Service",
           "type": "timeseries"
         },
@@ -31,12 +33,14 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
           "id": 2,
           "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "single", "sort": "none" } },
-          "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "histogram_quantile(0.95, sum(rate(http_server_request_duration_seconds_bucket[5m])) by (le, service_name))", "legendFormat": "{{service_name}} P95", "range": true, "refId": "A" } ],
+          "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", 
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, app))", 
+          "legendFormat": "{{app}} P95", "range": true, "refId": "A" } ],
           "title": "P95 Latency by Service",
           "type": "timeseries"
         }
       ],
-      "refresh": "",
+      "refresh": "5s",
       "schemaVersion": 38,
       "style": "dark",
       "tags": [],

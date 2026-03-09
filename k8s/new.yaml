@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: backend-success-rate
+  namespace: shopmicro
+spec:
+  metrics:
+  - name: success-rate
+    interval: 1m
+    # --- THE FIX: Tell Argo to stop after 3 checks ---
+    count: 3
+    # -------------------------------------------------
+    successCondition: result[0] >= 0.95
+    failureLimit: 2
+    provider:
+      prometheus:
+        address: http://prometheus:9090
+        query: |
+          sum(rate(http_requests_total{app="backend", status=~"2..|3.."}[1m])) 
+          / 
+          sum(rate(http_requests_total{app="backend"}[1m]))
